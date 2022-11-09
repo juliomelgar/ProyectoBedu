@@ -2,31 +2,50 @@
 # S3 bucket for WildRydes frontend source code (src_webapp)
 #----------------------------------------------------------------
 resource "aws_s3_bucket" "wildrydes_s3_bucket" {
-  bucket = "${var.s3-bucket-name}"
-  acl = "public-read"
+  bucket        = var.s3-bucket-name
   force_destroy = true
-
-  website {
-      index_document = "index.html"
-      error_document = "error.html"
-  }
-policy = <<EOF
-{
-  "Id": "bucket_policy_site",
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "bucket_policy_site_main",
-      "Action": [
-        "s3:GetObject"
-      ],
-      "Effect": "Allow",
-      "Resource": "arn:aws:s3:::${var.s3-bucket-name}/*",
-      "Principal": "*"
-    }
-  ]
 }
-EOF
+
+#----------------------------------------------------------------
+# S3 bucket acl
+#----------------------------------------------------------------
+
+resource "aws_s3_bucket_acl" "bucket_acl" {
+  bucket = aws_s3_bucket.wildrydes_s3_bucket.id
+  acl    = "private"
+}
+
+#----------------------------------------------------------------
+# S3 bucket policy
+#----------------------------------------------------------------
+
+resource "aws_s3_bucket_policy" "acceso_cloudfront" {
+  bucket = aws_s3_bucket.wildrydes_s3_bucket.id
+  policy = data.aws_iam_policy_document.allow_access_from_cloudfront.json
+}
+
+data "aws_iam_policy_document" "allow_access_from_cloudfront" {
+  statement {
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+
+    actions = [
+      "s3:GetObject"
+    ]
+
+    resources = [
+      aws_s3_bucket.wildrydes_s3_bucket.arn,
+      "arn:aws:s3:::${var.s3-bucket-name}/*",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = ["arn:aws:cloudfront::436477857277:distribution/${aws_cloudfront_distribution.wildrydes_distribution.id}"]
+    }
+  }
 }
 
 #----------------------------------------------------------------
@@ -110,4 +129,3 @@ resource "aws_cloudfront_distribution" "wildrydes_distribution" {
     cloudfront_default_certificate = true
   }
 }
-
